@@ -7,6 +7,7 @@ const { AudioPlayerStatus, NoSubscriberBehavior, VoiceConnectionStatus, createAu
 const play = require('play-dl');
 const ytdl = require('@distube/ytdl-core');
 const ffmpegPath = require('ffmpeg-static');
+const botVersion = '2026.09.18.4';
 
 const required = ['DISCORD_TOKEN', 'CLIENT_ID'];
 const missing = required.filter((name) => !process.env[name]);
@@ -137,10 +138,10 @@ const reply = (interaction, message) => interaction.reply(message);
 const status = (state) => `Filters: ${state.activeFilters.join(', ') || 'none'} | Loop: ${state.loop} | Autoplay: ${state.autoplay ? 'on' : 'off'} | Volume: ${state.volume}%`;
 
 client.once('ready', async (readyClient) => {
-  console.log(`Logged in as ${readyClient.user.tag}`);
+  console.log(`Logged in as ${readyClient.user.tag} | build ${botVersion}`);
   try {
     await registerCommands();
-    readyClient.user.setActivity('/help', { type: 2 });
+    readyClient.user.setActivity(`/help | ${botVersion}`, { type: 2 });
   } catch (error) {
     console.error('Startup stopped because Discord command registration failed.');
     process.exitCode = 1;
@@ -149,8 +150,26 @@ client.once('ready', async (readyClient) => {
 client.on('error', (error) => console.error('Discord client error:', error.message));
 async function handleInteraction(interaction) {
   if (!interaction.isChatInputCommand() || !interaction.guild) return;
-  const state = getState(interaction.guildId); state.channel = interaction.channel;
   const name = interaction.commandName;
+  console.log(`[interaction:${botVersion}] /${name} guild=${interaction.guildId}`);
+  if (name === 'connect') {
+    try {
+      await interaction.reply('Connecting to your voice channel...');
+    } catch (error) {
+      console.error('[connect:reply]', error.message);
+      return;
+    }
+    const state = getState(interaction.guildId);
+    state.channel = interaction.channel;
+    try {
+      const connected = await connect(interaction, state);
+      return interaction.editReply(connected ? 'Connected to your voice channel.' : 'Join a voice channel first, then run `/connect` again.');
+    } catch (error) {
+      console.error('[connect]', error.message);
+      return interaction.editReply(`I could not connect to voice: ${error.message}. Check my View Channel, Connect, and Speak permissions.`);
+    }
+  }
+  const state = getState(interaction.guildId); state.channel = interaction.channel;
   if (name === 'play' || name === 'playlist' || name === 'spotify') {
     await interaction.deferReply();
     let connected;
@@ -168,16 +187,6 @@ async function handleInteraction(interaction) {
     const query = interaction.options.getString(name === 'play' ? 'query' : 'url');
     try { const songs = await resolve(query, name === 'play' ? 1 : 5); if (!songs.length) return interaction.editReply('No tracks found.'); state.songs.push(...songs); const starts = !state.current; await interaction.editReply(`${starts ? 'Starting' : 'Added'} **${songs[0].title}**${songs.length > 1 ? ` and ${songs.length - 1} more` : ''}.`); if (starts) await playNext(interaction.guildId); } catch (error) { console.error(error.message); await interaction.editReply('I could not resolve that source.'); }
     return;
-  }
-  if (name === 'connect') {
-    await interaction.reply('Connecting to your voice channel...');
-    try {
-      const connected = await connect(interaction, state);
-      return interaction.editReply(connected ? 'Connected to your voice channel.' : 'Join a voice channel first, then run `/connect` again.');
-    } catch (error) {
-      console.error('[connect]', error.message);
-      return interaction.editReply(`I could not connect to voice: ${error.message}. Check my View Channel, Connect, and Speak permissions.`);
-    }
   }
   if (name === 'pause') { state.player.pause(); return reply(interaction, 'Paused.'); }
   if (name === 'resume') { state.player.unpause(); return reply(interaction, 'Resumed.'); }
