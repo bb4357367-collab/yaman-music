@@ -170,7 +170,7 @@ async function handleInteraction(interaction) {
     return;
   }
   if (name === 'connect') {
-    await interaction.deferReply();
+    await interaction.reply('Connecting to your voice channel...');
     try {
       const connected = await connect(interaction, state);
       return interaction.editReply(connected ? 'Connected to your voice channel.' : 'Join a voice channel first, then run `/connect` again.');
