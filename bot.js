@@ -84,7 +84,7 @@ async function registerCommands() {
 }
 async function connect(interaction, state) {
   const channel = interaction.member.voice.channel;
-  if (!channel) { await interaction.reply({ content: 'Join a voice channel first.', ephemeral: true }); return false; }
+  if (!channel) return false;
   if (!state.connection || state.connection.state.status === VoiceConnectionStatus.Destroyed || state.connection.joinConfig.channelId !== channel.id) {
     state.connection?.destroy();
     state.connection = joinVoiceChannel({ channelId: channel.id, guildId: channel.guild.id, adapterCreator: channel.guild.voiceAdapterCreator, selfDeaf: true });
@@ -148,7 +148,15 @@ client.on('interactionCreate', async (interaction) => {
   const name = interaction.commandName;
   if (name === 'play' || name === 'playlist' || name === 'spotify') {
     await interaction.deferReply();
-    if (!await connect(interaction, state)) {
+    let connected;
+    try {
+      connected = await connect(interaction, state);
+    } catch (error) {
+      console.error(`[${name}:voice]`, error.message);
+      await interaction.editReply('I could not connect to voice. Check my View Channel, Connect, and Speak permissions.');
+      return;
+    }
+    if (!connected) {
       await interaction.editReply('Join a voice channel first, then run `/play` again.');
       return;
     }
@@ -156,7 +164,16 @@ client.on('interactionCreate', async (interaction) => {
     try { const songs = await resolve(query, name === 'play' ? 1 : 5); if (!songs.length) return interaction.editReply('No tracks found.'); state.songs.push(...songs); const starts = !state.current; await interaction.editReply(`${starts ? 'Starting' : 'Added'} **${songs[0].title}**${songs.length > 1 ? ` and ${songs.length - 1} more` : ''}.`); if (starts) await playNext(interaction.guildId); } catch (error) { console.error(error.message); await interaction.editReply('I could not resolve that source.'); }
     return;
   }
-  if (name === 'connect') return connect(interaction, state).then((ok) => ok && reply(interaction, 'Connected to your voice channel.'));
+  if (name === 'connect') {
+    await interaction.deferReply();
+    try {
+      const connected = await connect(interaction, state);
+      return interaction.editReply(connected ? 'Connected to your voice channel.' : 'Join a voice channel first, then run `/connect` again.');
+    } catch (error) {
+      console.error('[connect]', error.message);
+      return interaction.editReply('I could not connect to that voice channel. Check my View Channel, Connect, and Speak permissions.');
+    }
+  }
   if (name === 'pause') { state.player.pause(); return reply(interaction, 'Paused.'); }
   if (name === 'resume') { state.player.unpause(); return reply(interaction, 'Resumed.'); }
   if (name === 'skip' || name === 'replay') { if (!state.current) return reply(interaction, 'Nothing is playing.'); if (name === 'replay') state.songs.unshift(state.current); state.player.stop(); return reply(interaction, name === 'skip' ? 'Skipped.' : 'Replaying.'); }
@@ -180,7 +197,18 @@ client.on('interactionCreate', async (interaction) => {
   if (name === 'like' || name === 'dislike') { if (!state.current) return reply(interaction, 'Nothing is playing.'); if (name === 'like' && !state.liked.some((song) => song.url === state.current.url)) state.liked.push(state.current); if (name === 'dislike') state.liked = state.liked.filter((song) => song.url !== state.current.url); return reply(interaction, name === 'like' ? 'Liked.' : 'Removed from liked.'); }
   if (name === 'showliked') return reply(interaction, state.liked.length ? state.liked.map((song, index) => `${index + 1}. ${song.title}`).join('\n') : 'No liked tracks.');
   if (name === 'playliked') { state.songs.push(...state.liked); if (!state.current) await playNext(interaction.guildId); return reply(interaction, state.liked.length ? 'Liked tracks added.' : 'No liked tracks.'); }
-  if (name === 'forcefix') { state.connection?.destroy(); state.connection = null; const ok = await connect(interaction, state); return ok && reply(interaction, 'Voice connection repaired.'); }
+  if (name === 'forcefix') {
+    await interaction.deferReply();
+    state.connection?.destroy();
+    state.connection = null;
+    try {
+      const connected = await connect(interaction, state);
+      return interaction.editReply(connected ? 'Voice connection repaired.' : 'Join a voice channel first, then run `/forcefix` again.');
+    } catch (error) {
+      console.error('[forcefix]', error.message);
+      return interaction.editReply('I could not repair voice. Check my View Channel, Connect, and Speak permissions.');
+    }
+  }
   if (name === 'buttons') return reply(interaction, 'Controls: `/pause` `/resume` `/skip` `/queue` `/shuffle` `/stop`');
   if (name === 'settings' || name === 'voicechannelstatus') return reply(interaction, name === 'settings' ? status(state) : state.connection ? `Connected to voice channel **${state.connection.joinConfig.channelId}**.` : 'Not connected.');
   if (name === 'dj') { state.djRole = interaction.options.getRole('role').id; return reply(interaction, 'DJ role updated.'); }
