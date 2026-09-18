@@ -1,9 +1,12 @@
 require('dotenv').config();
 
 const http = require('node:http');
+const { spawn } = require('node:child_process');
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { AudioPlayerStatus, NoSubscriberBehavior, VoiceConnectionStatus, createAudioPlayer, createAudioResource, joinVoiceChannel, StreamType, entersState } = require('@discordjs/voice');
 const play = require('play-dl');
+const ytdl = require('@distube/ytdl-core');
+const ffmpegPath = require('ffmpeg-static');
 
 const required = ['DISCORD_TOKEN', 'CLIENT_ID'];
 const missing = required.filter((name) => !process.env[name]);
@@ -105,8 +108,21 @@ async function playNext(guildId) {
   state.history.unshift(state.current);
   state.history = state.history.slice(0, 20);
   try {
-    const source = await play.stream(state.current.url, { quality: 2, discordPlayerCompatibility: true });
-    const resource = createAudioResource(source.stream, { inputType: source.type === 'opus' ? StreamType.WebmOpus : StreamType.Raw, inlineVolume: true });
+    const youtubeStream = ytdl(state.current.url, { filter: 'audioonly', quality: 'highestaudio', highWaterMark: 1 << 25 });
+    const ffmpeg = spawn(ffmpegPath, [
+      '-hide_banner', '-loglevel', 'error', '-i', 'pipe:0',
+      '-f', 's16le', '-ar', '48000', '-ac', '2', 'pipe:1'
+    ], { windowsHide: true });
+    youtubeStream.on('error', (error) => {
+      console.error(`[youtube:${guildId}]`, error.message);
+      ffmpeg.kill();
+      state.player.stop();
+    });
+    ffmpeg.stdin.on('error', () => {});
+    ffmpeg.stderr.on('data', (chunk) => console.error(`[ffmpeg:${guildId}] ${chunk.toString().trim()}`));
+    ffmpeg.on('error', (error) => console.error(`[ffmpeg:${guildId}]`, error.message));
+    youtubeStream.pipe(ffmpeg.stdin);
+    const resource = createAudioResource(ffmpeg.stdout, { inputType: StreamType.Raw, inlineVolume: true });
     resource.volume?.setVolume(state.volume / 100);
     state.player.play(resource);
     if (state.announce) await state.channel?.send(`▶ Now playing **${state.current.title}**`).catch(() => {});
@@ -131,7 +147,11 @@ client.on('interactionCreate', async (interaction) => {
   const state = getState(interaction.guildId); state.channel = interaction.channel;
   const name = interaction.commandName;
   if (name === 'play' || name === 'playlist' || name === 'spotify') {
-    await interaction.deferReply(); if (!await connect(interaction, state)) return;
+    await interaction.deferReply();
+    if (!await connect(interaction, state)) {
+      await interaction.editReply('Join a voice channel first, then run `/play` again.');
+      return;
+    }
     const query = interaction.options.getString(name === 'play' ? 'query' : 'url');
     try { const songs = await resolve(query, name === 'play' ? 1 : 5); if (!songs.length) return interaction.editReply('No tracks found.'); state.songs.push(...songs); const starts = !state.current; await interaction.editReply(`${starts ? 'Starting' : 'Added'} **${songs[0].title}**${songs.length > 1 ? ` and ${songs.length - 1} more` : ''}.`); if (starts) await playNext(interaction.guildId); } catch (error) { console.error(error.message); await interaction.editReply('I could not resolve that source.'); }
     return;

@@ -14,7 +14,7 @@ YAMAN is a Discord music bot with an optional browser dashboard. The Discord bot
 	npm start
 	```
 
-Invite the bot with the `bot` and `applications.commands` scopes and `Connect`, `Speak`, and `Send Messages` permissions. The bot registers the full requested command set, including playback, queue, history, search, playlists, likes, server settings, and all named filter commands. Use `/help` inside Discord for the grouped list.
+Invite the bot with the `bot` and `applications.commands` scopes and `Connect`, `Speak`, and `Send Messages` permissions. The bot also needs permission to view the voice channel. The bot registers the full requested command set, including playback, queue, history, search, playlists, likes, server settings, and all named filter commands. Use `/help` inside Discord for the grouped list.
 
 Playback, queue, history, search, likes, voice connection, volume, loop, shuffle, and announcements are wired into the runtime. `/seek`, `/forward`, and `/rewind` currently acknowledge the command but need a seekable FFmpeg pipeline for exact seeking. Filter commands persist their selected state and report it; actual DSP processing needs FFmpeg filter wiring. Spotify URLs are accepted as source queries, while dedicated Spotify metadata/API support can be added with Spotify credentials.
 
@@ -27,4 +27,4 @@ Playback, queue, history, search, likes, voice connection, volume, loop, shuffle
 - Mood cards and recently played tracks
 - Discord slash-command bot runtime with voice playback and queue management
 
-The browser UI currently uses demo data and remote cover art. It can be connected to the bot through a small API later. Never commit `.env`; it contains your bot token.
+The browser UI currently uses demo data and remote cover art. It can be connected to the bot through a small API later. Never commit `.env`; it contains your bot token. The Node bot bundles FFmpeg and the Discord Opus codec, so the deployment should use the repository `npm start` command and should not need a system FFmpeg install.
