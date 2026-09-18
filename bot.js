@@ -85,11 +85,16 @@ async function registerCommands() {
 async function connect(interaction, state) {
   const channel = interaction.member.voice.channel;
   if (!channel) return false;
-  if (!state.connection || state.connection.state.status === VoiceConnectionStatus.Destroyed || state.connection.joinConfig.channelId !== channel.id) {
+  const connectionIsUsable = state.connection &&
+    state.connection.state.status !== VoiceConnectionStatus.Destroyed &&
+    state.connection.joinConfig.channelId === channel.id;
+  if (!connectionIsUsable) {
     state.connection?.destroy();
     state.connection = joinVoiceChannel({ channelId: channel.id, guildId: channel.guild.id, adapterCreator: channel.guild.voiceAdapterCreator, selfDeaf: true });
     state.connection.subscribe(state.player);
-    await entersState(state.connection, VoiceConnectionStatus.Ready, 15_000);
+  }
+  if (state.connection.state.status !== VoiceConnectionStatus.Ready) {
+    await entersState(state.connection, VoiceConnectionStatus.Ready, 30_000);
   }
   return true;
 }
@@ -153,7 +158,7 @@ client.on('interactionCreate', async (interaction) => {
       connected = await connect(interaction, state);
     } catch (error) {
       console.error(`[${name}:voice]`, error.message);
-      await interaction.editReply('I could not connect to voice. Check my View Channel, Connect, and Speak permissions.');
+      await interaction.editReply(`I could not connect to voice: ${error.message}. Check my View Channel, Connect, and Speak permissions.`);
       return;
     }
     if (!connected) {
@@ -171,7 +176,7 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.editReply(connected ? 'Connected to your voice channel.' : 'Join a voice channel first, then run `/connect` again.');
     } catch (error) {
       console.error('[connect]', error.message);
-      return interaction.editReply('I could not connect to that voice channel. Check my View Channel, Connect, and Speak permissions.');
+      return interaction.editReply(`I could not connect to voice: ${error.message}. Check my View Channel, Connect, and Speak permissions.`);
     }
   }
   if (name === 'pause') { state.player.pause(); return reply(interaction, 'Paused.'); }
@@ -206,7 +211,7 @@ client.on('interactionCreate', async (interaction) => {
       return interaction.editReply(connected ? 'Voice connection repaired.' : 'Join a voice channel first, then run `/forcefix` again.');
     } catch (error) {
       console.error('[forcefix]', error.message);
-      return interaction.editReply('I could not repair voice. Check my View Channel, Connect, and Speak permissions.');
+      return interaction.editReply(`I could not repair voice: ${error.message}. Check my View Channel, Connect, and Speak permissions.`);
     }
   }
   if (name === 'buttons') return reply(interaction, 'Controls: `/pause` `/resume` `/skip` `/queue` `/shuffle` `/stop`');
