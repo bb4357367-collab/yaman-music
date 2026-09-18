@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const http = require('node:http');
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { AudioPlayerStatus, NoSubscriberBehavior, VoiceConnectionStatus, createAudioPlayer, createAudioResource, joinVoiceChannel, StreamType, entersState } = require('@discordjs/voice');
 const play = require('play-dl');
@@ -45,6 +46,15 @@ const commandData = commands.map((command) => command.toJSON());
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
 const guildStates = new Map();
+
+// Some deployment hosts require a listening HTTP port even for background bots.
+const healthServer = http.createServer((request, response) => {
+  response.writeHead(200, { 'Content-Type': 'application/json' });
+  response.end(JSON.stringify({ service: 'yaman-music', status: client.isReady() ? 'ready' : 'starting' }));
+});
+healthServer.listen(process.env.PORT || 3000, '0.0.0.0', () => {
+  console.log(`Health server listening on port ${process.env.PORT || 3000}.`);
+});
 function getState(guildId) {
   if (!guildStates.has(guildId)) {
     const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
@@ -58,7 +68,13 @@ function getState(guildId) {
 async function registerCommands() {
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   const route = process.env.GUILD_ID ? Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID) : Routes.applicationCommands(process.env.CLIENT_ID);
-  await rest.put(route, { body: commandData });
+  try {
+    await rest.put(route, { body: commandData });
+  } catch (error) {
+    console.error('Discord command registration failed:', error.message);
+    console.error('Discord status:', error.status, 'code:', error.code);
+    throw error;
+  }
   console.log(`Registered ${commandData.length} YAMAN commands.`);
 }
 async function connect(interaction, state) {
