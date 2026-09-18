@@ -8,6 +8,8 @@ const play = require('play-dl');
 const required = ['DISCORD_TOKEN', 'CLIENT_ID'];
 const missing = required.filter((name) => !process.env[name]);
 if (missing.length) throw new Error(`Missing environment variables: ${missing.join(', ')}`);
+const guildId = /^\d{17,20}$/.test(process.env.GUILD_ID || '') ? process.env.GUILD_ID : null;
+if (process.env.GUILD_ID && !guildId) console.warn('Ignoring invalid GUILD_ID; registering commands globally.');
 
 const filters = ['eightd', 'bassboost', 'deepbass', 'daycore', 'nightcore', 'lofi', 'karaoke', 'chipmunk', 'darthvader', 'slowed', 'vibrato', 'vibration', 'tremolo'];
 const simpleCommands = [
@@ -67,7 +69,7 @@ function getState(guildId) {
 }
 async function registerCommands() {
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-  const route = process.env.GUILD_ID ? Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID) : Routes.applicationCommands(process.env.CLIENT_ID);
+  const route = guildId ? Routes.applicationGuildCommands(process.env.CLIENT_ID, guildId) : Routes.applicationCommands(process.env.CLIENT_ID);
   try {
     await rest.put(route, { body: commandData });
   } catch (error) {
@@ -113,7 +115,17 @@ async function playNext(guildId) {
 const reply = (interaction, message) => interaction.reply(message);
 const status = (state) => `Filters: ${state.activeFilters.join(', ') || 'none'} | Loop: ${state.loop} | Autoplay: ${state.autoplay ? 'on' : 'off'} | Volume: ${state.volume}%`;
 
-client.once('ready', async (readyClient) => { console.log(`Logged in as ${readyClient.user.tag}`); await registerCommands(); readyClient.user.setActivity('/help', { type: 2 }); });
+client.once('ready', async (readyClient) => {
+  console.log(`Logged in as ${readyClient.user.tag}`);
+  try {
+    await registerCommands();
+    readyClient.user.setActivity('/help', { type: 2 });
+  } catch (error) {
+    console.error('Startup stopped because Discord command registration failed.');
+    process.exitCode = 1;
+  }
+});
+client.on('error', (error) => console.error('Discord client error:', error.message));
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand() || !interaction.guild) return;
   const state = getState(interaction.guildId); state.channel = interaction.channel;
