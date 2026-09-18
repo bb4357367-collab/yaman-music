@@ -52,6 +52,8 @@ const commandData = commands.map((command) => command.toJSON());
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
 const guildStates = new Map();
+process.on('unhandledRejection', (error) => console.error('[unhandled-rejection]', error?.stack || error));
+process.on('uncaughtException', (error) => console.error('[uncaught-exception]', error?.stack || error));
 
 // Some deployment hosts require a listening HTTP port even for background bots.
 const healthServer = http.createServer((request, response) => {
@@ -246,4 +248,7 @@ client.on('interactionCreate', (interaction) => {
   });
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN).catch((error) => {
+  console.error('[discord-login]', error.message);
+  process.exitCode = 1;
+});
