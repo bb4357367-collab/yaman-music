@@ -147,7 +147,7 @@ client.once('ready', async (readyClient) => {
   }
 });
 client.on('error', (error) => console.error('Discord client error:', error.message));
-client.on('interactionCreate', async (interaction) => {
+async function handleInteraction(interaction) {
   if (!interaction.isChatInputCommand() || !interaction.guild) return;
   const state = getState(interaction.guildId); state.channel = interaction.channel;
   const name = interaction.commandName;
@@ -219,6 +219,22 @@ client.on('interactionCreate', async (interaction) => {
   if (name === 'dj') { state.djRole = interaction.options.getRole('role').id; return reply(interaction, 'DJ role updated.'); }
   if (name === 'restrictcommand') { const command = interaction.options.getString('command').replace('/', ''); const restricted = interaction.options.getBoolean('restricted'); restricted ? state.restricted.add(command) : state.restricted.delete(command); return reply(interaction, `/${command}: ${restricted ? 'restricted' : 'open'}.`); }
   if (name === 'help') return reply(interaction, `**YAMAN MUSIC COMMANDS**\nPlayback: /play /pause /resume /skip /skipto /stop /connect /disconnect /queue /nowplaying /history /previous /replay\nQueue: /shuffle /remove /clear /loop /autoplay /volume /seek /forward /rewind\nSearch: /search /playlist /spotify /searchplaylist /searchartist /searchalbum\nLibrary: /like /dislike /showliked /playliked\nEffects: ${filters.map((filter) => `/${filter}`).join(' ')} /resetfilter\nServer: /twentyfourseven (24/7) /announce /buttons /dj /settings /voicechannelstatus /restrictcommand /forcefix /help`);
+}
+
+client.on('interactionCreate', (interaction) => {
+  handleInteraction(interaction).catch(async (error) => {
+    console.error(`[command:${interaction.commandName || 'unknown'}]`, error.stack || error.message);
+    const message = `That command failed: ${error.message || 'unknown error'}`.slice(0, 1900);
+    try {
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply(message);
+      } else {
+        await interaction.reply({ content: message, ephemeral: true });
+      }
+    } catch (replyError) {
+      console.error('[interaction-error-reply]', replyError.message);
+    }
+  });
 });
 
 client.login(process.env.DISCORD_TOKEN);
