@@ -1,0 +1,19 @@
+{
+  "name": "yaman-music-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "YAMAN MUSIC Discord music bot",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@discordjs/voice": "^0.18.0",
+    "discord.js": "^14.22.1",
+    "dotenv": "^17.2.2",
+    "play-dl": "^1.9.7"
+  }
+}
