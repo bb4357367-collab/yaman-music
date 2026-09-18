@@ -8,7 +8,7 @@ const required = ['DISCORD_TOKEN', 'CLIENT_ID'];
 const missing = required.filter((name) => !process.env[name]);
 if (missing.length) throw new Error(`Missing environment variables: ${missing.join(', ')}`);
 
-const filters = ['8d', 'bassboost', 'deepbass', 'daycore', 'nightcore', 'lofi', 'karaoke', 'chipmunk', 'darthvader', 'slowed', 'vibrato', 'vibration', 'tremolo'];
+const filters = ['eightd', 'bassboost', 'deepbass', 'daycore', 'nightcore', 'lofi', 'karaoke', 'chipmunk', 'darthvader', 'slowed', 'vibrato', 'vibration', 'tremolo'];
 const simpleCommands = [
   ['pause', 'Pause playback.'], ['resume', 'Resume playback.'], ['skip', 'Skip the current song.'], ['stop', 'Stop and clear the queue.'],
   ['disconnect', 'Disconnect from voice.'], ['leave', 'Alias for disconnect.'], ['connect', 'Join your voice channel.'], ['queue', 'Show the queue.'],
@@ -25,7 +25,7 @@ const commands = [
   new SlashCommandBuilder().setName('bump').setDescription('Move a queue item to the front.').addIntegerOption((o) => o.setName('position').setDescription('Position').setMinValue(1).setRequired(true)),
   new SlashCommandBuilder().setName('loop').setDescription('Set loop mode.').addStringOption((o) => o.setName('mode').setDescription('Mode').setRequired(true).addChoices({ name: 'off', value: 'off' }, { name: 'track', value: 'track' }, { name: 'queue', value: 'queue' })),
   new SlashCommandBuilder().setName('autoplay').setDescription('Toggle autoplay.').addBooleanOption((o) => o.setName('enabled').setDescription('Enabled').setRequired(true)),
-  new SlashCommandBuilder().setName('247').setDescription('Toggle 24/7 mode.').addBooleanOption((o) => o.setName('enabled').setDescription('Enabled').setRequired(true)),
+  new SlashCommandBuilder().setName('twentyfourseven').setDescription('Toggle 24/7 mode.').addBooleanOption((o) => o.setName('enabled').setDescription('Enabled').setRequired(true)),
   new SlashCommandBuilder().setName('announce').setDescription('Toggle announcements.').addBooleanOption((o) => o.setName('enabled').setDescription('Enabled').setRequired(true)),
   new SlashCommandBuilder().setName('volume').setDescription('Set volume.').addIntegerOption((o) => o.setName('amount').setDescription('0 to 100').setMinValue(0).setMaxValue(100).setRequired(true)),
   new SlashCommandBuilder().setName('seek').setDescription('Seek to seconds.').addIntegerOption((o) => o.setName('seconds').setDescription('Seconds').setMinValue(0).setRequired(true)),
@@ -122,7 +122,7 @@ client.on('interactionCreate', async (interaction) => {
   if (name === 'clear') { state.songs.length = 0; return reply(interaction, 'Queue cleared.'); }
   if (['remove', 'skipto', 'bump'].includes(name)) { const index = interaction.options.getInteger('position') - 1; if (!state.songs[index]) return reply(interaction, 'That position does not exist.'); const song = state.songs.splice(index, 1)[0]; if (name === 'bump') state.songs.unshift(song); if (name === 'skipto') { state.songs.splice(0, index); state.player.stop(); } return reply(interaction, `${name}: **${song.title}**.`); }
   if (name === 'loop') { state.loop = interaction.options.getString('mode'); return reply(interaction, `Loop mode: **${state.loop}**.`); }
-  if (['autoplay', '247', 'announce'].includes(name)) { const enabled = interaction.options.getBoolean('enabled'); if (name === 'autoplay') state.autoplay = enabled; if (name === '247') state.alwaysOn = enabled; if (name === 'announce') state.announce = enabled; return reply(interaction, `${name}: **${enabled ? 'on' : 'off'}**.`); }
+  if (['autoplay', 'twentyfourseven', 'announce'].includes(name)) { const enabled = interaction.options.getBoolean('enabled'); if (name === 'autoplay') state.autoplay = enabled; if (name === 'twentyfourseven') state.alwaysOn = enabled; if (name === 'announce') state.announce = enabled; return reply(interaction, `${name}: **${enabled ? 'on' : 'off'}**.`); }
   if (name === 'volume') { state.volume = interaction.options.getInteger('amount'); return reply(interaction, `Volume: **${state.volume}%**. Applies to the next track.`); }
   if (['seek', 'forward', 'rewind'].includes(name)) return reply(interaction, `/${name} is registered. Exact seeking needs a seekable audio source.`);
   if (['search', 'searchplaylist', 'searchartist', 'searchalbum'].includes(name)) { await interaction.deferReply(); try { const songs = await resolve(interaction.options.getString('query'), 5); return interaction.editReply(songs.map((song, index) => `${index + 1}. **${song.title}**\n${song.url}`).join('\n') || 'No results.'); } catch { return interaction.editReply('Search failed.'); } }
@@ -137,7 +137,7 @@ client.on('interactionCreate', async (interaction) => {
   if (name === 'settings' || name === 'voicechannelstatus') return reply(interaction, name === 'settings' ? status(state) : state.connection ? `Connected to voice channel **${state.connection.joinConfig.channelId}**.` : 'Not connected.');
   if (name === 'dj') { state.djRole = interaction.options.getRole('role').id; return reply(interaction, 'DJ role updated.'); }
   if (name === 'restrictcommand') { const command = interaction.options.getString('command').replace('/', ''); const restricted = interaction.options.getBoolean('restricted'); restricted ? state.restricted.add(command) : state.restricted.delete(command); return reply(interaction, `/${command}: ${restricted ? 'restricted' : 'open'}.`); }
-  if (name === 'help') return reply(interaction, `**YAMAN MUSIC COMMANDS**\nPlayback: /play /pause /resume /skip /skipto /stop /connect /disconnect /queue /nowplaying /history /previous /replay\nQueue: /shuffle /remove /clear /loop /autoplay /volume /seek /forward /rewind\nSearch: /search /playlist /spotify /searchplaylist /searchartist /searchalbum\nLibrary: /like /dislike /showliked /playliked\nEffects: ${filters.map((filter) => `/${filter}`).join(' ')} /resetfilter\nServer: /247 /announce /buttons /dj /settings /voicechannelstatus /restrictcommand /forcefix /help`);
+  if (name === 'help') return reply(interaction, `**YAMAN MUSIC COMMANDS**\nPlayback: /play /pause /resume /skip /skipto /stop /connect /disconnect /queue /nowplaying /history /previous /replay\nQueue: /shuffle /remove /clear /loop /autoplay /volume /seek /forward /rewind\nSearch: /search /playlist /spotify /searchplaylist /searchartist /searchalbum\nLibrary: /like /dislike /showliked /playliked\nEffects: ${filters.map((filter) => `/${filter}`).join(' ')} /resetfilter\nServer: /twentyfourseven (24/7) /announce /buttons /dj /settings /voicechannelstatus /restrictcommand /forcefix /help`);
 });
 
 client.login(process.env.DISCORD_TOKEN);
